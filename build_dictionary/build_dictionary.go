@@ -233,7 +233,7 @@ func getWordMeaningMap() (map[int]map[string]string, error) {
 		lines := strings.Split(string(data), "\n")
 
 		levelMap := make(map[string]string)
-		for _, line := range lines[1:] { // skip header line
+		for _, line := range lines { // skip header line
 			fields := strings.Split(line, "\t")
 			if len(fields) >= 4 {
 				levelMap[fields[1]] = fields[3]
