@@ -1,6 +1,7 @@
 package sentencesort
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 const outputFile = "sentences-by-level.tsv"
 const sentencesFile = "data/sentences.txt"
+const groupedSentencesFile = "grouped-sentences.json"
 
 func readCharacterList(filePath string, level int) (map[rune]int, error) {
 	characterMap := make(map[rune]int)
@@ -67,9 +69,11 @@ func SortSentences() {
 
 	// Determine and output the levels for each sentence
 	output := "sentence\tlevel\n"
+	levelMap := make(map[int][]string)
 	for _, sentence := range sentences {
 		level := determineSentenceLevel(sentence, characterMaps...)
 		output += fmt.Sprintf("%s\t%d\n", sentence, level)
+		levelMap[level] = append(levelMap[level], sentence)
 	}
 
 	// Write the output to a TSV file
@@ -79,4 +83,17 @@ func SortSentences() {
 	}
 
 	fmt.Printf("Output written to %s\n", outputFile)
+
+	// Export the grouped sentences as JSON
+	groupedJSON, err := json.MarshalIndent(levelMap, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.WriteFile(groupedSentencesFile, groupedJSON, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Grouped sentences exported to %s\n", groupedSentencesFile)
 }

@@ -19,8 +19,6 @@ func main() {
 		sentencesort.SortSentences()
 	case "dictionary":
 		builddictionary.BuildDictionary()
-		// Call build_dictionary module
-		// Implement the functionality for the "dictionary" command
 	default:
 		displayHelp()
 	}

@@ -9,18 +9,17 @@ import (
 )
 
 const (
-	charactersPinyinFile          = "characters-pinyin.tsv"
-	pinyinDictionaryFile          = "pinyin-dictionary.json"
-	characterReplacementIndexFile = "character-replacement-index.json"
+	charactersPinyinFile                  = "characters-pinyin.tsv"
+	charactersPinyinFileAlt               = "characters-pinyin.json"
+	pinyinDictionaryFile                  = "pinyin-dictionary.json"
+	characterReplacementIndexFile         = "character-replacement-index.json"
+	charactersGroupedByPinyinAndLevelFile = "characters-grouped-by-pinyin-and-level.json"
 )
 
 func BuildDictionary() {
 	fmt.Println("Compiling pinyin character dictionary...")
 
-	if _, err := os.Stat(charactersPinyinFile); os.IsNotExist(err) {
-		fmt.Println("Build Character list by pinyin first")
-		makeCharactersPinyinFile()
-	}
+	makeCharactersPinyinFile()
 	// Read the charactersPinyinFile and build the character map
 	characterMap, err := buildCharacterMap()
 	if err != nil {
@@ -29,6 +28,8 @@ func BuildDictionary() {
 	}
 
 	fmt.Printf("Found %d characters.\n", len(characterMap))
+
+	writeCharactersPinyinFileAlt(characterMap)
 
 	// Group characters by pinyin and build the pinyin dictionary
 	pinyinGroups := groupCharactersByPinyin(characterMap)
@@ -83,6 +84,15 @@ func buildReplacementDictionary(characterMap map[string]string, pinyinGroups map
 	return replacementDictionary
 }
 
+// write characterMap to JSON
+func writeCharactersPinyinFileAlt(characterMap map[string]string) error {
+	data, err := json.Marshal(characterMap)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(charactersPinyinFileAlt, data, 0644)
+}
+
 func writeReplacementDictionary(replacementDictionary map[string][]string) error {
 	data, err := json.Marshal(replacementDictionary)
 	if err != nil {
@@ -129,9 +139,10 @@ func writePinyinDictionary(pinyinDictionary map[string][]string) error {
 func makeCharactersPinyinFile() {
 
 	output := "character\tpinyin\n"
+	pinyinLevelMap := make(map[string]map[int][]string)
 
-	for i := 1; i <= 7; i++ {
-		data, err := os.ReadFile(fmt.Sprintf("data/HSK%d-characters.txt", i))
+	for level := 1; level <= 7; level++ {
+		data, err := os.ReadFile(fmt.Sprintf("data/HSK%d-characters.txt", level))
 		if err != nil {
 			panic(err)
 		}
@@ -146,7 +157,13 @@ func makeCharactersPinyinFile() {
 				fmt.Printf("Unable to find pinyin for %s\n", string(char))
 				continue
 			} else {
-				output += fmt.Sprintf("%s\t%s\n", char, pinyinStr[0][0])
+				// populate the pinyinLevelMap with the character, pinyin, and level
+				pinyinString := pinyinStr[0][0]
+				if _, ok := pinyinLevelMap[pinyinString]; !ok {
+					pinyinLevelMap[pinyinString] = make(map[int][]string)
+				}
+				pinyinLevelMap[pinyinString][level] = append(pinyinLevelMap[pinyinString][level], char)
+				output += fmt.Sprintf("%s\t%s\n", char, pinyinString)
 			}
 		}
 	}
@@ -157,4 +174,14 @@ func makeCharactersPinyinFile() {
 		panic(err)
 	}
 	fmt.Printf("Output written to %s\n", charactersPinyinFile)
+
+	data, err := json.Marshal(pinyinLevelMap)
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.WriteFile(charactersGroupedByPinyinAndLevelFile, data, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
