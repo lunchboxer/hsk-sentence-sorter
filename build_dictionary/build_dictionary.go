@@ -14,6 +14,7 @@ const (
 	pinyinDictionaryFile                  = "pinyin-dictionary.json"
 	characterReplacementIndexFile         = "character-replacement-index.json"
 	charactersGroupedByPinyinAndLevelFile = "characters-grouped-by-pinyin-and-level.json"
+	characterWordMapFile                  = "character-word.json"
 )
 
 func BuildDictionary() {
@@ -56,6 +57,21 @@ func BuildDictionary() {
 	}
 
 	fmt.Printf("Replacement dictionary built and written to %s.\n", characterReplacementIndexFile)
+
+	characterWordMap, err := getCharacterWordMap()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	fmt.Println(len(characterWordMap))
+
+	err = writeCharacterWordMap(characterWordMap)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Printf("Character word map built and written to %s.\n", characterWordMapFile)
 }
 
 func buildReplacementDictionary(characterMap map[string]string, pinyinGroups map[string][]string) map[string][]string {
@@ -184,4 +200,95 @@ func makeCharactersPinyinFile() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// returns a list of strings
+func listAllCharacters() []string {
+	allCharacters := make([]string, 0)
+	for level := 1; level <= 7; level++ {
+		data, err := os.ReadFile(fmt.Sprintf("data/HSK%d-characters.txt", level))
+		if err != nil {
+			panic(err)
+		}
+		characters := strings.Split(string(data), "\n")
+		allCharacters = append(allCharacters, characters...)
+	}
+	return allCharacters
+}
+
+// this function loops through `HSK %d - meanings.tsv` with integer for each of 7 levels.
+// It returns a map of words in the 2nd column to their meanings in the 4th column
+// ignores the other columns
+// group words by level
+// this function loops through `HSK %d - meanings.tsv` with integer for each of 7 levels.
+// It returns a map of level to a map of words to their meanings
+func getWordMeaningMap() (map[int]map[string]string, error) {
+	wordMeaningMap := make(map[int]map[string]string)
+
+	for level := 1; level <= 7; level++ {
+		data, err := os.ReadFile(fmt.Sprintf("data/HSK%d-meanings.tsv", level))
+		if err != nil {
+			return nil, err
+		}
+		lines := strings.Split(string(data), "\n")
+
+		levelMap := make(map[string]string)
+		for _, line := range lines[1:] { // skip header line
+			fields := strings.Split(line, "\t")
+			if len(fields) >= 4 {
+				levelMap[fields[1]] = fields[3]
+			}
+		}
+		wordMeaningMap[level] = levelMap
+	}
+	return wordMeaningMap, nil
+}
+
+func getCharacterWordMap() (map[string]map[int]map[string]string, error) {
+	wordMeaningMap, err := getWordMeaningMap()
+	if err != nil {
+		return nil, err
+	}
+
+	allCharacters := listAllCharacters()
+
+	characterWordMap := make(map[string]map[int]map[string]string)
+
+	// for each character, find all words that contain that character
+	for _, char := range allCharacters {
+		if len(char) == 0 {
+			continue
+		}
+		if _, ok := characterWordMap[char]; !ok {
+			characterWordMap[char] = make(map[int]map[string]string)
+		}
+
+		for level, levelMap := range wordMeaningMap {
+			wordMapForLevel := make(map[string]string)
+			for word, meaning := range levelMap {
+				if strings.Contains(word, char) {
+					wordMapForLevel[word] = meaning
+				}
+			}
+			if len(wordMapForLevel) > 0 {
+				characterWordMap[char][level] = wordMapForLevel
+			}
+		}
+	}
+
+	return characterWordMap, nil
+}
+
+func writeCharacterWordMap(characterWordMap map[string]map[int]map[string]string) error {
+	data, err := json.Marshal(characterWordMap)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(characterWordMapFile, data, 0644)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Output written to %s\n", characterWordMapFile)
+	return nil
 }
